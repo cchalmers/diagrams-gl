@@ -1,0 +1,44 @@
+name:                diagrams-gl
+version:             0.1.0.0
+synopsis:            OpenGL backend for diagrams
+-- description:         
+license:             BSD3
+license-file:        LICENSE
+author:              Christopher Chalmers
+maintainer:          c.chalmers@me.com
+-- copyright:           
+category:            Graphics
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Diagrams.Backend.GL
+  -- other-modules:       
+  other-extensions:
+    DeriveDataTypeable,
+    FlexibleContexts,
+    FlexibleInstances,
+    GADTs,
+    MultiParamTypeClasses,
+    NoMonomorphismRestriction,
+    TypeFamilies
+  build-depends:
+    base >=4.9 && <4.10,
+    mtl >=2.2 && <2.3,
+    bytestring >=0.10 && <0.11,
+    hashable >=1.2 && <1.3,
+    optparse-applicative >=0.12 && <0.13,
+    directory >=1.2 && <1.3,
+    filepath >=1.4 && <1.5,
+    diagrams >=2.0 && <2.1,
+    geometry >=0.1 && <0.2,
+    containers,
+    file-embed,
+    lens,
+    vector,
+    colour,
+    linear,
+    gl
+  hs-source-dirs:      src
+  default-language:    Haskell2010
