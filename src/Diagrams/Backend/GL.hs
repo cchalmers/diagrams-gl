@@ -1,20 +1,19 @@
-{-# LANGUAGE DeriveDataTypeable        #-}
-{-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE MultiWayIf        #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE MultiWayIf                 #-}
+{-# LANGUAGE NoMonomorphismRestriction  #-}
+{-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE PatternSynonyms        #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving        #-}
-{-# LANGUAGE TemplateHaskell           #-}
-{-# LANGUAGE LambdaCase                #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE GADTs                     #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE ViewPatterns               #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Backend.PGF
@@ -46,15 +45,15 @@ module Diagrams.Backend.GL
   -- )
   where
 
-import qualified Data.Colour as Colour
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import System.FilePath ((</>))
+import qualified Data.Colour                  as Colour
+import           Data.Sequence                (Seq)
+import qualified Data.Sequence                as Seq
+import           System.FilePath              ((</>))
 
 import           Control.Monad                (when)
+import           Control.Monad.IO.Class
 import           Control.Monad.Reader         (local)
 import           Control.Monad.State
-import           Control.Monad.IO.Class
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Char8        as BS
 import qualified Data.ByteString.Lazy         as LB
@@ -67,35 +66,42 @@ import           System.Directory             (canonicalizePath,
 import           System.FilePath              (FilePath, takeDirectory,
                                                takeExtension)
 
-import           Diagrams.Prelude             hiding (clip, local, (<~), with)
 import qualified Data.Foldable                as F
 import           Diagrams.Backend.Compile
+import           Diagrams.Prelude             hiding (clip, local, with, (<~))
 import           Diagrams.TwoD.Text
 
-import Control.Exception
-import Data.FileEmbed
+import           Control.Exception
+import           Data.FileEmbed
 
-import           Diagrams.Types               hiding (local)
-import           Geometry.Space
-import Geometry.ThreeD.Types
-import Geometry.TwoD.Types
--- import Geometry.Path.Unboxed
-import Linear (mkTransformationMat, M44, transpose, (!*!))
-import qualified Data.Vector.Storable as S
+import           Data.Colour.SRGB.Linear      as Linear
+import           Data.Traversable
+import qualified Data.Vector.Storable         as S
 import qualified Data.Vector.Storable.Mutable as M
-import Foreign
-import Foreign.C (withCString, peekCString)
-import Data.Colour.SRGB.Linear as Linear
-import Data.Traversable
+import           Diagrams.Types               hiding (local)
+import           Foreign
+import           Foreign.C                    (peekCString, withCString)
+import           Geometry.Space
+import           Geometry.ThreeD.Types
+import           Geometry.TwoD.Types
+import           Linear                       (M44, mkTransformationMat,
+                                               transpose, (!*!))
 
-import Geometry.Path
+import           Geometry.Path
 
-import Diagrams.ThreeD.Attributes
-import Graphics.GL
+import           Diagrams.ThreeD.Attributes
+import           Graphics.GL
 
 ------------------------------------------------------------------------
 -- Types
 ------------------------------------------------------------------------
+
+-- | Vertex infomation about drawing a single shape.
+data BasicInfo = BasicInfo
+  { infoVao          :: !GLuint
+  , infoNumTriangles :: !GLsizei
+  , infoCleanup      :: IO ()
+  }
 
 -- | For now we only render very basic elements. This includes
 --
@@ -106,94 +112,107 @@ import Graphics.GL
 --     - ambient light
 --     - model transformation
 data Basic = Basic
-  { basicVertexInfo :: !VertexInfo
-  , basicColour     :: !(Colour Double)
-  -- , basicLightPos   :: !(P3 Float)
+  { basicInfo   :: !BasicInfo
+  , basicColour :: !(Colour Double)
   -- , basicSpecular   :: !Float
   -- , basicAmbiend    :: !Float
   -- , basicDiffuse    :: !Float
-  , basicModel      :: !(M44 Float)
+  , basicModel  :: !(M44 Float)
   }
 
--- | The locations for various parts of the program.
-data ProgramInfo = ProgramInfo
-  { programID :: GLuint
-  , mvpID     :: GLint
-  , viewID    :: GLint
-  , modelID   :: GLint
-  , colourID  :: GLint
-  , lightPosID   :: GLint
-  , lightColourID :: GLint
+-- | The program used to render basic shapes (see 'Basic')
+data BasicProgram = BasicProgram
+  { programID     :: !GLuint
+  , mvpID         :: !GLint
+  , viewID        :: !GLint
+  , modelID       :: !GLint
+  , colourID      :: !GLint
+  , lightPosID    :: !GLint
+  , lightColourID :: !GLint
   -- , specularID :: GLint
   -- , diffuseID :: GLint
   }
 
-data VertexInfo = VertexInfo
-  { infoVao          :: GLuint
-  , infoNumTriangles :: GLsizei
-  , infoCleanup      :: IO ()
-  }
-
+-- | Infomation needed to draw a 3D line
 data LineInfo = LineInfo
-  { lineVao         :: GLuint
-  , lineNumSegments :: Int
-  , lineInfoWidth   :: Float
-  , lineInfoColour  :: Colour Double
-  , lineInfoModel   :: M44 Float
+  { lineVao         :: !GLuint
+  , lineNumSegments :: !Int
+  , lineInfoWidth   :: !Float
+  , lineInfoColour  :: !(Colour Double)
+  , lineInfoModel   :: !(M44 Float)
   } deriving Show
 
-data RenderInfo = RenderInfo
+-- | Infomation needed to render a diagram scene
+data SceneInfo = SceneInfo
   { _renderBasics :: Seq Basic
   , _renderLines  :: Seq LineInfo
   , _renderLights :: Seq (P3 Double, Colour Double)
-  , _sphereInfo   :: !VertexInfo
-  , _cubeInfo     :: !VertexInfo
+  , _sphereInfo   :: !BasicInfo
+  , _cubeInfo     :: !BasicInfo
   } -- sphere and cube info don't really need to be here, they should
     -- really be in a reader portion
 
+makeLenses ''SceneInfo
+
+data LineProgram = LineProgram
+  { lineProgramId    :: GLuint
+  , lineViewId       :: GLint
+  , lineProjectionId :: GLint
+  , lineModelId      :: GLint
+  , lineColourId     :: GLint
+  , lineWidthId      :: GLint
+  }
+
+data RenderInfo = RenderInfo
+  { _renderScene        :: SceneInfo
+  , _renderBasicProgram :: BasicProgram
+  , _renderLineProgram  :: LineProgram
+  }
+
+makeLenses ''RenderInfo
+
 type GLRender = GLRenderM ()
 
-newtype GLRenderM a = GLRender (StateT RenderInfo IO a)
-  deriving (Functor, Applicative, Monad, MonadState RenderInfo, MonadIO)
+-- | Monad used to compute the RenderInfo for rendering a diagram.
+newtype GLRenderM a = GLRender (StateT SceneInfo IO a)
+  deriving (Functor, Applicative, Monad, MonadState SceneInfo, MonadIO)
 
 instance Semigroup GLRender where
   (<>) = (>>)
-
 instance Monoid GLRender where
   mappend = (>>)
   mempty  = pure ()
 
-makeLenses ''RenderInfo
-
-runRender :: GLRender -> IO RenderInfo
+runRender :: GLRender -> IO SceneInfo
 runRender (GLRender render) = do
   sphereI <- initSphere
   cubeI   <- initCube
-  let renderInfo0 = RenderInfo mempty mempty mempty sphereI cubeI
+  let renderInfo0 = SceneInfo mempty mempty mempty sphereI cubeI
   execStateT render renderInfo0
 
--- Initiate draw commands.
-drawRender :: M44 Float -> M44 Float -> ProgramInfo -> LineProgram -> RenderInfo -> IO ()
-drawRender viewMat projectionMat program lineProgram render = do
-  glUseProgram (programID program)
+-- | Draw a scene from the RenderInfo with the provided view and
+--   projection matrices.
+drawScene :: RenderInfo -> M44 Float -> M44 Float -> IO ()
+drawScene renderInfo viewMat projectionMat = do
+  glUseProgram (programID $ _renderBasicProgram renderInfo)
 
-  let mLight = preview (renderLights._head) render
+  let mLight = preview (renderScene.renderLights._head) renderInfo
   let (P lightP, lightC) = fromMaybe (2, white) mLight
-  uniform3v (lightPosID program) lightP
+  uniform3v (lightPosID $ _renderBasicProgram renderInfo) lightP
   -- uniformColour (lightColourID program) lightC
 
-  F.for_ (view renderBasics render) (renderBasic viewMat projectionMat program)
+  F.for_ (view (renderScene.renderBasics) renderInfo) (renderBasic viewMat projectionMat (_renderBasicProgram renderInfo))
 
-  drawLines lineProgram (_renderLines render) projectionMat viewMat
+  drawLines (_renderLineProgram renderInfo) (_renderLines (_renderScene renderInfo)) projectionMat viewMat
 
-diagramRender :: Diagram V3 -> IO (ProgramInfo, LineProgram, RenderInfo)
+diagramRender :: Diagram V3 -> IO RenderInfo
 diagramRender dia = do
-  prog   <- initProgram
+  prog     <- initProgram
   lineProg <- lineProgram
-  render <- runRender (toRender mempty dia)
-  return (prog, lineProg, render)
+  scene    <- runRender (toRender mempty dia)
+  return $ RenderInfo scene prog lineProg
 
-initProgram :: IO ProgramInfo
+initProgram :: IO BasicProgram
 initProgram = do
   let basicVert = $(embedFile "shaders/shader-3D.vert")
       basicFrag = $(embedFile "shaders/shader-3D.frag")
@@ -209,7 +228,7 @@ initProgram = do
   -- lightColourLoc <- getLoc "LightColour_w"
   colourLoc   <- getLoc "MaterialDiffuseColor"
 
-  return ProgramInfo
+  return BasicProgram
     { programID     = progID
     , mvpID         = mvpLoc
     , viewID        = viewLoc
@@ -244,13 +263,13 @@ getSC :: Attributes -> Colour Double
 getSC = fromMaybe grey . getAttr _SurfaceColor
 
 -- | All basic prims use the same shader.
-addBasicPrim :: T3 Double -> Attributes -> VertexInfo -> GLRender
+addBasicPrim :: T3 Double -> Attributes -> BasicInfo -> GLRender
 addBasicPrim t attrs info = do
   let colour = getSC attrs
       model  = (\(T m _ v) -> mkTransformationMat m v) t
 
   let basic = Basic
-        { basicVertexInfo = info
+        { basicInfo = info
         , basicColour     = colour
         , basicModel      = (fmap.fmap) realToFrac model
         }
@@ -262,10 +281,10 @@ renderLight p c = renderLights %= cons (p,c)
 
 -- Rendering -----------------------------------------------------------
 
-renderBasic :: M44 Float -> M44 Float -> ProgramInfo -> Basic -> IO ()
+renderBasic :: M44 Float -> M44 Float -> BasicProgram -> Basic -> IO ()
 renderBasic viewMat projectionMat ids basic = do
-  let vertexInfo = basicVertexInfo basic
-  glBindVertexArray (infoVao vertexInfo)
+  let basicI = basicInfo basic
+  glBindVertexArray (infoVao basicI)
 
   let modelMat = basicModel basic
 
@@ -284,7 +303,7 @@ renderBasic viewMat projectionMat ids basic = do
   -- colour of the shape
   uniformColour (colourID ids) (basicColour basic)
 
-  glDrawArrays GL_TRIANGLES 0 (infoNumTriangles vertexInfo)
+  glDrawArrays GL_TRIANGLES 0 (infoNumTriangles basicI)
 
 -- Vertex info ---------------------------------------------------------
 
@@ -293,7 +312,7 @@ renderBasic viewMat projectionMat ids basic = do
 basicElement
   :: S.Vector Float -- ^ vertices
   -> S.Vector Float -- ^ normals
-  -> IO VertexInfo
+  -> IO BasicInfo
 basicElement vertexData normalData = do
 
   vao <- allocRef $ glGenVertexArrays 1
@@ -331,11 +350,11 @@ basicElement vertexData normalData = do
   let numTriangles = fromIntegral $ 3*S.length vertexData
 
   glBindVertexArray 0
-  return (VertexInfo vao numTriangles cleanup)
+  return (BasicInfo vao numTriangles cleanup)
 
 -- Basic shapes --------------------------------------------------------
 
-initSphere :: IO VertexInfo
+initSphere :: IO BasicInfo
 initSphere = do
   vao <- allocRef $ glGenVertexArrays 1
   glBindVertexArray vao
@@ -361,7 +380,7 @@ initSphere = do
         with vao $ glDeleteVertexArrays 1
 
   glBindVertexArray 0
-  return (VertexInfo vao numTriangles cleanup)
+  return (BasicInfo vao numTriangles cleanup)
 
 
 -- | We start with a cube where is face is made up of an 8x8 grid of
@@ -407,7 +426,7 @@ teselatedCube = S.create $ do
 
   return mv
 
-initCube :: IO VertexInfo
+initCube :: IO BasicInfo
 initCube = basicElement cubeVertices cubeNormals
   where
     cubeVertices = S.map (*0.5) $ S.fromList
@@ -456,15 +475,6 @@ trailStraights t = S.fromList $ p : concatMap (map (fmap realToFrac) . seg2point
     seg2points cs = map (cs `atParam`) [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
 -- Line program --------------------------------------------------------
-
-data LineProgram = LineProgram
-  { lineProgramId    :: GLuint
-  , lineViewId       :: GLint
-  , lineProjectionId :: GLint
-  , lineModelId      :: GLint
-  , lineColourId     :: GLint
-  , lineWidthId      :: GLint
-  }
 
 lineProgram :: MonadIO m => m LineProgram
 lineProgram = liftIO $ do
