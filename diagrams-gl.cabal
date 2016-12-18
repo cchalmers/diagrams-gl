@@ -13,7 +13,11 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Diagrams.Backend.GL
+  exposed-modules:
+    Diagrams.Backend.GL
+    Diagrams.Backend.GL.Util
+    Diagrams.Backend.GL.Lines
+    Diagrams.Backend.GL.Basic
   -- other-modules:       
   other-extensions:
     DeriveDataTypeable,
@@ -41,4 +45,5 @@ library
     linear,
     gl
   hs-source-dirs:      src
+  ghc-options: -Wall
   default-language:    Haskell2010
