@@ -24,7 +24,7 @@
 --
 module Diagrams.Backend.GL.Util
   (
-    CameraMatrices (..)
+    SceneView (..)
 
     -- * Program helpers
   , newProgram
@@ -61,11 +61,12 @@ import           Foreign
 import           Geometry.ThreeD.Types
 
 import           Graphics.GL
-import Linear (M44)
+import Linear (V2, M44)
 
 -- | Matrices used to draw a scene.
-data CameraMatrices = CameraMatrices
-  { viewMatrix :: !(M44 Float)
+data SceneView = SceneView
+  { windowSize :: !(V2 Int)
+  , viewMatrix :: !(M44 Float)
   , projMatrix :: !(M44 Float)
   }
 

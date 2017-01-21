@@ -139,24 +139,31 @@ renderPath t path attrs = do
 
     return vao
 
-  let width   = fromMaybe 0.1 (getAttr _LineWidth attrs)
+  let width   = fromMaybe 0.01 (getAttr _LineWidth attrs) :: Double
       acolour = fromMaybe (opaque black) (getAttr _LineWidth attrs)
       -- alpha colours are not supported
-      colour  = acolour `Colour.over` white
+      colour  = acolour `Colour.over` black
       modelMat = eye -- we transform before hand for now
+
+--   putStrLn "rendering path!"
+--   putStrLn $ "I calculated the width to be " ++ show width
+--   putStrLn $ "getAttr _LineWidth = " ++ show (getAttr _LineWidth)
+--   putStrLn $ "Attrs I received look like this:"
+--   print (attrs^._Wrapped)
+--   putStrLn []
 
   return LineInfo
     { lineVao         = vao
     , lineNumSegments = S.length pointData
-    , lineInfoWidth   = width
+    , lineInfoWidth   = realToFrac width
     , lineInfoColour  = colour
     , lineInfoModel   = modelMat
     }
 
 -- | Draw the sequence of line infos using the line program and the
 -- current projection and view matrix
-drawLines :: CameraMatrices -> LineProgram -> Seq LineInfo -> IO ()
-drawLines (CameraMatrices v p) lprog lineinfos = do
+drawLines :: SceneView -> LineProgram -> Seq LineInfo -> IO ()
+drawLines (SceneView _ v p) lprog lineinfos = do
   glUseProgram (lineProgramId lprog)
   with (transpose v) $ glUniformMatrix4fv (lineViewId lprog) 1 GL_FALSE . castPtr
   with (transpose p) $ glUniformMatrix4fv (lineProjectionId lprog) 1 GL_FALSE . castPtr
@@ -168,7 +175,7 @@ drawLines (CameraMatrices v p) lprog lineinfos = do
     with (transpose m) $ glUniformMatrix4fv (lineModelId lprog) 1 GL_FALSE . castPtr
 
     uniformColour (lineColourId lprog) (lineInfoColour line)
-    glUniform1f (lineColourId lprog) (lineInfoWidth line)
+    glUniform1f (lineWidthId lprog) (lineInfoWidth line)
 
     glDrawArrays GL_LINES 0 (fromIntegral $ lineNumSegments line)
 

@@ -18,6 +18,7 @@ library
     Diagrams.Backend.GL.Util
     Diagrams.Backend.GL.Lines
     Diagrams.Backend.GL.Basic
+    Diagrams.Backend.GL.Text
   -- other-modules:       
   other-extensions:
     DeriveDataTypeable,
@@ -38,6 +39,9 @@ library
     diagrams >=2.0 && <2.1,
     geometry >=0.1 && <0.2,
     containers,
+    letters,
+    unordered-containers,
+    primitive,
     file-embed,
     lens,
     vector,

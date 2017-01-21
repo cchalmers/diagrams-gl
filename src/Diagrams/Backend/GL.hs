@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE ViewPatterns         #-}
+{-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
@@ -44,6 +46,10 @@ module Diagrams.Backend.GL
   , addPath
   , addLight
 
+  , GLText (..)
+  , _GLText
+  , pattern GLText_
+
   , module Diagrams.Backend.GL.Basic
   , module Diagrams.Backend.GL.Lines
   , module Diagrams.Backend.GL.Util
@@ -59,6 +65,10 @@ import           Diagrams.Prelude           hiding (clip, local, with, (<~))
 import           Diagrams.Types             hiding (local)
 import           Geometry.ThreeD.Types
 
+import Linear.V2 (V2 (..))
+import Linear.Matrix
+import Geometry.Space
+
 import           Geometry.Path
 
 import           Graphics.GL
@@ -66,6 +76,9 @@ import           Graphics.GL
 import           Diagrams.Backend.GL.Basic
 import           Diagrams.Backend.GL.Lines
 import           Diagrams.Backend.GL.Util
+import           Diagrams.Backend.GL.Text
+
+import Letters.Internal
 
 ------------------------------------------------------------------------
 -- Types
@@ -75,21 +88,28 @@ import           Diagrams.Backend.GL.Util
 data SceneInfo = SceneInfo
   { _renderBasics :: Seq Basic
   , _renderLines  :: Seq LineInfo
+  , _renderTexts  :: Seq TextInfo
   , _renderLights :: Seq (P3 Double, Colour Double)
   , _sphereInfo   :: !BasicInfo
   , _cubeInfo     :: !BasicInfo
+  , _ftFontFace   :: !FontFace
+  , _renderGlyphs :: !GlyphMap
   } -- sphere and cube info don't really need to be here, they should
     -- really be in a reader portion
 
-makeLenses ''SceneInfo
+makeClassy ''SceneInfo
 
 data RenderInfo = RenderInfo
   { _renderScene        :: SceneInfo
   , _renderBasicProgram :: BasicProgram
   , _renderLineProgram  :: LineProgram
+  , _renderTextProgram  :: TextProgram
   }
 
 makeClassy ''RenderInfo
+
+instance HasSceneInfo RenderInfo where
+  sceneInfo = renderScene
 
 type GLScene = GLSceneM ()
 
@@ -107,7 +127,12 @@ initScene :: IO SceneInfo
 initScene = do
   sphereI <- initSphere
   cubeI   <- initCube
-  return (SceneInfo mempty mempty mempty sphereI cubeI)
+  lib     <- newLibrary
+  ff      <- newFontFace lib deja (16*64) 144
+  return (SceneInfo mempty mempty mempty mempty sphereI cubeI ff mempty)
+
+deja :: FilePath
+deja = "/Users/christopher/Documents/truetype/DejaVuSerif.ttf"
 
 runRender :: GLScene -> IO SceneInfo
 runRender (GLScene render) = do
@@ -115,8 +140,10 @@ runRender (GLScene render) = do
 
 -- | Draw a scene from the RenderInfo with the provided view and
 --   projection matrices.
-drawScene :: CameraMatrices -> RenderInfo -> IO ()
-drawScene (CameraMatrices viewMat projectionMat) rInfo = do
+drawScene :: SceneView -> RenderInfo -> IO ()
+drawScene (SceneView sz viewMat projectionMat) rInfo = do
+
+  -- let scene = _renderScene rInfo
 
   let mLight = preview (renderScene.renderLights._head) rInfo
   let (P lightP, _lightC) = fromMaybe (2, white) mLight
@@ -124,17 +151,41 @@ drawScene (CameraMatrices viewMat projectionMat) rInfo = do
   -- uniformColour (lightColourID program) lightC
 
   glUseProgram (programID $ _renderBasicProgram rInfo)
-  F.for_ (view (renderScene.renderBasics) rInfo) (renderBasic viewMat projectionMat (_renderBasicProgram rInfo))
+  F.for_ (view (renderScene.renderBasics) rInfo)
+         (renderBasic viewMat projectionMat (_renderBasicProgram rInfo))
 
   -- glUseProgram (lineProgramId $ _renderLineProgram rInfo)
-  drawLines (CameraMatrices viewMat projectionMat) (_renderLineProgram rInfo) (_renderLines (_renderScene rInfo))
+  drawLines
+    (SceneView sz viewMat projectionMat)
+    (_renderLineProgram rInfo)
+    (_renderLines (_renderScene rInfo))
+
+  let mvp = projectionMat !*! viewMat
+
+  -- This disables writing to the depth buffer but still respects
+  -- it. This allows us to draw transparent values (which should
+  -- be ordered) while still drawing them behind other objects
+  glDepthMask GL_FALSE
+
+  glEnable GL_BLEND
+  glBlendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+
+  renderTextRenders
+    sz
+    mvp
+    (rInfo^.renderTextProgram)
+    (rInfo^.renderGlyphs)
+    (rInfo^.renderTexts)
+
+  glDepthMask GL_TRUE
 
 diagramRender :: Diagram V3 -> IO RenderInfo
 diagramRender dia = do
   prog     <- initBasicProgram
   lineProg <- lineProgram
+  textProg <- initTextProgram
   scene    <- runRender (toRender mempty dia)
-  return $ RenderInfo scene prog lineProg
+  return $ RenderInfo scene prog lineProg textProg
 
 ------------------------------------------------------------------------
 -- Rendering
@@ -150,11 +201,12 @@ renderAnnot _a = id
   -- | otherwise                          = id
 
 renderPrim :: T3 Double -> Attributes -> Prim V3 Double -> GLScene
-renderPrim t attrs = \case
+renderPrim t@(T _ _ v) attrs = \case
   Cube_           -> use cubeInfo   >>= addBasicPrim t attrs
   Sphere_         -> use sphereInfo >>= addBasicPrim t attrs
   PointLight_ p c -> addLight (papply t p) c
   Path_ p         -> addPath t p attrs
+  GLText_ txt c   -> addText v txt c
   _               -> mempty
 
 -- | All basic prims use the same shader.
@@ -165,6 +217,32 @@ addBasicPrim t attrs info = do
 
 addLight :: P3 Double -> Colour Double -> GLScene
 addLight p c = renderLights %= cons (p,c)
+
+data GLText = GLText String (AlphaColour Double)
+
+type instance V GLText = V3
+type instance N GLText = Double
+
+_GLText :: Prism' (Prim V3 Double) GLText
+_GLText = _Prim
+
+pattern GLText_ :: String -> AlphaColour Double -> Prim V3 Double
+pattern GLText_ t c <- (preview _GLText -> Just (GLText t c)) where
+  GLText_ s c = Prim (GLText s c)
+
+addText :: V3 Double -> String -> AlphaColour Double -> GLScene
+addText v str c = do
+  ff <- use ftFontFace
+
+  txtInfo <- liftIO $ mkTextInfo ff str v c zero
+
+  let codepoints = advancesCodepoints (textAdvances txtInfo)
+
+  m  <- use renderGlyphs
+  m' <- liftIO $ addGlyphs ff m codepoints
+  renderGlyphs .= m'
+
+  renderTexts %= cons txtInfo
 
 -- Rendering lines -----------------------------------------------------
 
