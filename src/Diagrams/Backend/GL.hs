@@ -46,9 +46,16 @@ module Diagrams.Backend.GL
   , addPath
   , addLight
 
+  -- * Text
   , GLText (..)
   , _GLText
   , pattern GLText_
+
+  -- Mesh
+  , BasicMesh (..)
+  , basicMesh
+  , _BasicMesh
+  , pattern BasicMesh_
 
   , module Diagrams.Backend.GL.Basic
   , module Diagrams.Backend.GL.Lines
@@ -68,6 +75,8 @@ import           Geometry.ThreeD.Types
 import Linear.V2 (V2 (..))
 import Linear.Matrix
 import Geometry.Space
+
+import qualified Data.Vector.Storable as S
 
 import           Geometry.Path
 
@@ -90,6 +99,7 @@ data SceneInfo = SceneInfo
   , _renderLines  :: Seq LineInfo
   , _renderTexts  :: Seq TextInfo
   , _renderLights :: Seq (P3 Double, Colour Double)
+  , _basicInfos   :: Seq BasicInfo
   , _sphereInfo   :: !BasicInfo
   , _cubeInfo     :: !BasicInfo
   , _ftFontFace   :: !FontFace
@@ -128,11 +138,15 @@ initScene = do
   sphereI <- initSphere
   cubeI   <- initCube
   lib     <- newLibrary
-  ff      <- newFontFace lib deja (16*64) 144
-  return (SceneInfo mempty mempty mempty mempty sphereI cubeI ff mempty)
+  ff      <- newFontFace lib asana (16*64) 144
+  return (SceneInfo mempty mempty mempty mempty mempty sphereI cubeI ff mempty)
 
 deja :: FilePath
 deja = "/Users/christopher/Documents/truetype/DejaVuSerif.ttf"
+
+
+asana :: FilePath
+asana = "/Users/christopher/Documents/truetype/letters/fonts/Asana-Math/Asana-Math.otf"
 
 runRender :: GLScene -> IO SceneInfo
 runRender (GLScene render) = do
@@ -146,7 +160,7 @@ drawScene (SceneView sz viewMat projectionMat) rInfo = do
   -- let scene = _renderScene rInfo
 
   let mLight = preview (renderScene.renderLights._head) rInfo
-  let (P lightP, _lightC) = fromMaybe (2, white) mLight
+  let (P lightP, _lightC) = fromMaybe (1000, orange) mLight
   uniform3v (lightPosID $ _renderBasicProgram rInfo) lightP
   -- uniformColour (lightColourID program) lightC
 
@@ -202,12 +216,13 @@ renderAnnot _a = id
 
 renderPrim :: T3 Double -> Attributes -> Prim V3 Double -> GLScene
 renderPrim t@(T _ _ v) attrs = \case
-  Cube_           -> use cubeInfo   >>= addBasicPrim t attrs
-  Sphere_         -> use sphereInfo >>= addBasicPrim t attrs
-  PointLight_ p c -> addLight (papply t p) c
-  Path_ p         -> addPath t p attrs
-  GLText_ txt c   -> addText v txt c
-  _               -> mempty
+  Cube_            -> use cubeInfo   >>= addBasicPrim t attrs
+  Sphere_          -> use sphereInfo >>= addBasicPrim t attrs
+  PointLight_ p c  -> addLight (papply t p) c
+  Path_ p          -> addPath t p attrs
+  GLText_ txt c    -> addText v txt c
+  BasicMesh_ ps ns -> addMesh ps ns >>= addBasicPrim t attrs
+  _                -> mempty
 
 -- | All basic prims use the same shader.
 addBasicPrim :: T3 Double -> Attributes -> BasicInfo -> GLScene
@@ -217,6 +232,8 @@ addBasicPrim t attrs info = do
 
 addLight :: P3 Double -> Colour Double -> GLScene
 addLight p c = renderLights %= cons (p,c)
+
+-- Text ----------------------------------------------------------------
 
 data GLText = GLText String (AlphaColour Double)
 
@@ -243,6 +260,35 @@ addText v str c = do
   renderGlyphs .= m'
 
   renderTexts %= cons txtInfo
+
+-- Custom triangle mesh ------------------------------------------------
+
+data BasicMesh = BasicMesh !(S.Vector (P3 Float)) !(S.Vector (V3 Float))
+
+_BasicMesh :: Prism' (Prim V3 Double) BasicMesh
+_BasicMesh = _Prim
+
+pattern BasicMesh_ :: S.Vector (P3 Float) -> S.Vector (V3 Float) -> Prim V3 Double
+pattern BasicMesh_ t c <- (preview _BasicMesh -> Just (BasicMesh t c)) where
+  BasicMesh_ s c = Prim (BasicMesh s c)
+
+type instance V BasicMesh = V3
+type instance N BasicMesh = Double
+
+addMesh
+  :: S.Vector (P3 Float)
+  -> S.Vector (V3 Float)
+  -> GLSceneM BasicInfo
+addMesh ps ns = do
+  info  <- liftIO $ basicElement (S.unsafeCast ps) (S.unsafeCast ns)
+  basicInfos %= cons info
+  return info
+
+basicMesh :: S.Vector (P3 Float) -> S.Vector (V3 Float) -> Diagram V3
+basicMesh ts ns = mkQD (BasicMesh_ ts ns) env mempty mempty
+  where
+    -- VERY inefficient
+    env = getEnvelope (toListOf (each.to (fmap realToFrac)) ts)
 
 -- Rendering lines -----------------------------------------------------
 

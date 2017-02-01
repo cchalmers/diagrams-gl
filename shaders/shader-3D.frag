@@ -21,23 +21,32 @@ void main(){
   // Light emission properties
   // You probably want to put them as uniforms
   vec3 LightColor = vec3(1,1,1);
-  float LightPower = 50.0f;
+  float LightPower = 120.0f;
+
+  vec3 material_colour;
+
+  if (gl_FrontFacing) {
+    material_colour = MaterialDiffuseColor;
+  } else {
+    material_colour = vec3(0.3, 0.3, 0.3);
+  }
 
   // Material properties
   // vec3 MaterialDiffuseColor = texture( myTextureSampler, UV ).rgb;
 
-  vec3 MaterialAmbientColor  = vec3(0.3,0.3,0.3) * MaterialDiffuseColor;
+  vec3 MaterialAmbientColor  = vec3(0.5,0.5,0.5) * material_colour;
   vec3 MaterialSpecularColor = vec3(0.3,0.3,0.3);
 
   // Distance to the light
-  float distance = length( LightPos_w - Position_worldspace );
+  /* float distance = length( LightPos_w - Position_worldspace ); */
+  float distance = 10.0;
   // float distance = length( vec3(5.0,5.0,5.0) - Position_worldspace );
 
   // Normal of the computed fragment, in camera space
   vec3 n = normalize( Normal_cameraspace );
   // Direction of the light (from the fragment to the light)
   vec3 l = normalize( LightDirection_cameraspace );
-  // Cosine of the angle between the normal and the light direction, 
+  // Cosine of the angle between the normal and the light direction,
   // clamped above 0
   //  - light is at the vertical of the triangle -> 1
   //  - light is perpendicular to the triangle -> 0
@@ -54,13 +63,14 @@ void main(){
   //  - Looking elsewhere -> < 1
   float cosAlpha = max(0, dot(E,R));
 
-  color =  vec4(
+  vec3 c =
     // Ambient : simulates indirect lighting
     MaterialAmbientColor +
     // Diffuse : "color" of the object
-    MaterialDiffuseColor * LightColor * LightPower * cosTheta / (distance*distance) +
+    material_colour * LightColor * LightPower * cosTheta / (distance*distance) +
     // Specular : reflective highlight, like a mirror
-    MaterialSpecularColor * LightColor * LightPower * pow(cosAlpha,5) / (distance*distance)
-    , 1);
+    MaterialSpecularColor * LightColor * LightPower * pow(cosAlpha,5) / (distance*distance);
+
+  color = vec4(c, 1);
 
 }

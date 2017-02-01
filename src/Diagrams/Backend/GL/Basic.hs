@@ -58,6 +58,9 @@ import           Graphics.GL
 
 import           Diagrams.Backend.GL.Util
 
+import qualified Data.ByteString as BS
+import System.FilePath ((</>))
+
 ------------------------------------------------------------------------
 -- Types
 ------------------------------------------------------------------------
@@ -101,8 +104,11 @@ data BasicProgram = BasicProgram
 
 initBasicProgram :: IO BasicProgram
 initBasicProgram = do
-  let basicVert = $(embedFile "shaders/shader-3D.vert")
-      basicFrag = $(embedFile "shaders/shader-3D.frag")
+  let shaderFolder = "/Users/christopher/Documents/diagrams/diagrams-gl/shaders"
+  basicVert <- BS.readFile (shaderFolder </> "shader-3D.vert")
+  basicFrag <- BS.readFile (shaderFolder </> "shader-3D.frag")
+  -- let basicVert = $(embedFile "shaders/shader-3D.vert")
+  --     basicFrag = $(embedFile "shaders/shader-3D.frag")
   progID <- newProgram basicVert Nothing basicFrag
   glUseProgram progID
 
