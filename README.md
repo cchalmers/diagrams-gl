@@ -13,6 +13,11 @@ to handle the OpenGL commands yourself.
 Currently only supports basic shapes with a single light source and
 very basic paths.
 
+Text support in the works:
+
+![alt text](https://dl.dropboxusercontent.com/u/1112720/3D-plot-1.png "3D plot 1")
+![alt text](https://dl.dropboxusercontent.com/u/1112720/3D-plot-2.png "3D plot 2")
+
 ### 2D backend
 
 There is currently no support for 2D primitives, but there are plans
