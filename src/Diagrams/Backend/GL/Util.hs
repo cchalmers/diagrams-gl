@@ -51,14 +51,14 @@ import           Data.Typeable
 
 import           Control.Exception
 import qualified Data.ByteString         as BS
-import           Diagrams.Prelude        hiding (clip, local, with, (<~))
+import           Diagrams.Prelude        hiding (clip, local, with, (<~), e)
 import           Foreign.C               (peekCString)
 
 import           Data.Colour.SRGB.Linear as Linear
 import           Data.Traversable
 import qualified Data.Vector.Storable    as S
 import           Foreign
-import           Geometry.ThreeD.Types
+-- import           Geometry.ThreeD.Types
 
 import           Graphics.GL
 import Linear (V2, M44)

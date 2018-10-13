@@ -44,6 +44,7 @@ import Diagrams.Types.Style
 import Diagrams.ThreeD.Attributes
 import           Diagrams.Prelude             hiding (clip, local, viewLoc,
                                                with, (<~))
+import Geometry.Transform
 
 import Data.Maybe (fromMaybe)
 import           Data.FileEmbed

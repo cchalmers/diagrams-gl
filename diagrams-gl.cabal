@@ -19,6 +19,7 @@ library
     Diagrams.Backend.GL.Lines
     Diagrams.Backend.GL.Basic
     Diagrams.Backend.GL.Text
+    Diagrams.Backend.GL.TwoD
   -- other-modules:       
   other-extensions:
     DeriveDataTypeable,
@@ -29,13 +30,13 @@ library
     NoMonomorphismRestriction,
     TypeFamilies
   build-depends:
-    base >=4.9 && <4.10,
-    mtl >=2.2 && <2.3,
-    bytestring >=0.10 && <0.11,
-    hashable >=1.2 && <1.3,
-    optparse-applicative >=0.12 && <0.13,
-    directory >=1.2 && <1.3,
-    filepath >=1.4 && <1.5,
+    base >=4.9 && <5.0,
+    mtl,
+    bytestring,
+    hashable,
+    optparse-applicative,
+    directory,
+    filepath,
     diagrams >=2.0 && <2.1,
     geometry >=0.1 && <0.2,
     containers,
@@ -47,7 +48,8 @@ library
     vector,
     colour,
     linear,
-    gl
+    gl,
+    nanovg
   hs-source-dirs:      src
   ghc-options: -Wall
   default-language:    Haskell2010

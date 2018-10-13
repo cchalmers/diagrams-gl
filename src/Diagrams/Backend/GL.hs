@@ -71,6 +71,7 @@ import           Diagrams.Backend.Compile
 import           Diagrams.Prelude           hiding (clip, local, with, (<~))
 import           Diagrams.Types             hiding (local)
 import           Geometry.ThreeD.Types
+import           Geometry.Transform
 
 import Linear.V2 (V2 (..))
 import Linear.Matrix
