@@ -120,9 +120,9 @@ toRender t d = runRender $ foldDia renderPrim renderAnnot t d
 
 renderAnnot :: Annotation V2 Double -> NanoRender -> NanoRender
 renderAnnot _a = id
-  -- | Just x <- getAnnot _GroupOpacity a = P.opacityGroup x
-  -- | Just p <- getAnnot _Clip         a = clip (F.toList p)
-  -- | otherwise                          = id
+  -- -- | Just x <- getAnnot _GroupOpacity a = P.opacityGroup x
+  -- -- | Just p <- getAnnot _Clip         a = clip (F.toList p)
+  -- -- | otherwise                          = id
 
 renderPrim :: T2 Double -> Attributes -> Prim V2 Double -> NanoRender
 renderPrim t attrs = \case

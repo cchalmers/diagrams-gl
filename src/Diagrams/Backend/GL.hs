@@ -211,9 +211,9 @@ toRender = foldDia renderPrim renderAnnot
 
 renderAnnot :: Annotation V3 Double -> GLScene -> GLScene
 renderAnnot _a = id
-  -- | Just x <- getAnnot _GroupOpacity a = P.opacityGroup x
-  -- | Just p <- getAnnot _Clip         a = clip (F.toList p)
-  -- | otherwise                          = id
+  -- -- | Just x <- getAnnot _GroupOpacity a = P.opacityGroup x
+  -- -- | Just p <- getAnnot _Clip         a = clip (F.toList p)
+  -- -- | otherwise                          = id
 
 renderPrim :: T3 Double -> Attributes -> Prim V3 Double -> GLScene
 renderPrim t@(T _ _ v) attrs = \case
