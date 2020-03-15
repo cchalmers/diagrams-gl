@@ -88,6 +88,10 @@ import           Diagrams.Backend.GL.Lines
 import           Diagrams.Backend.GL.Util
 import           Diagrams.Backend.GL.Text
 
+import qualified Paths_diagrams_gl
+import           System.IO.Unsafe
+import           System.FilePath              ((</>))
+
 import Letters.Internal
 
 ------------------------------------------------------------------------
@@ -142,12 +146,8 @@ initScene = do
   ff      <- newFontFace lib asana (16*64) 144
   return (SceneInfo mempty mempty mempty mempty mempty sphereI cubeI ff mempty)
 
-deja :: FilePath
-deja = "/Users/christopher/Documents/truetype/DejaVuSerif.ttf"
-
-
 asana :: FilePath
-asana = "/Users/christopher/Documents/truetype/letters/fonts/Asana-Math/Asana-Math.otf"
+asana = unsafePerformIO $ (</> "fonts/Asana-Math.otf") <$> Paths_diagrams_gl.getDataDir
 
 runRender :: GLScene -> IO SceneInfo
 runRender (GLScene render) = do
