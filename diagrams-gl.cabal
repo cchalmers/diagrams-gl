@@ -20,7 +20,6 @@ library
     Diagrams.Backend.GL.Basic
     Diagrams.Backend.GL.Text
     Diagrams.Backend.GL.TwoD
-  -- other-modules:       
   other-extensions:
     DeriveDataTypeable,
     FlexibleContexts,
